@@ -25,7 +25,6 @@ exports.createDeliveryV1 = async (req, res) => {
         const {
             supplier,
             deliveryDate,
-            
             items,
             teaForWorkers = 0,
             carPayment = 0,
