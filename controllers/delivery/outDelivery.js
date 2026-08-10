@@ -1021,6 +1021,9 @@ for (const payment of payments) {
             await axios.delete(
                 `${process.env.WalletUrl}/transaction/V2/${payment.walletInfo.transactionReference}`,
                 {
+                    params:{
+                     delete:true,
+                    },
                     headers: {
                         "x-api-key": process.env.INTERNAL_API_KEY,
                     },
