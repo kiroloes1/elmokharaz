@@ -500,11 +500,18 @@ exports.createDelivery = async (req, res) => {
     p.walletInfo.walletId;
 
 } catch (error) {
+  console.error("Wallet API ERROR:", {
+    message: error.message,
+    status: error.response?.status,
+    data: error.response?.data,
+    url: error.config?.url,
+  });
 
-    throw new Error(
-        
-        error
-    );
+  throw new Error(
+    error.response?.data?.message ||
+    error.response?.data?.error ||
+    error.message
+  );
 }
 }
     }
