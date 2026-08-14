@@ -326,6 +326,7 @@ exports.getPayments = async (req, res) => {
             .populate("supplier", "name")
             .populate("createdBy", "name")
             .populate("updatedBy", "name")
+            .populate("cheque")
             .sort(sort)
             .skip((page - 1) * limit)
             .limit(limit)

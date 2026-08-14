@@ -741,131 +741,374 @@ await createLog({
 };
 
 
-exports.deletePaymentHistory = async (req, res) => {
-  const session = await mongoose.startSession();
- session.startTransaction();
-  try {
+// exports.deletePaymentHistory = async (req, res) => {
+//   const session = await mongoose.startSession();
+//  session.startTransaction();
+//   try {
 
    
 
+//     const { paymentId, supplierId } = req.params;
+
+//     const supplier = await customerModel.findById(supplierId).session(session);
+
+//     if (!supplier) {
+//       await session.abortTransaction();
+//       session.endSession();
+
+//       return res.status(404).json({
+//         message: "العميل غير موجود"
+//       });
+//     }
+
+//   const existPaymentHistory = await paymentModel.findById(paymentId).session(session);
+//   if (!existPaymentHistory) {
+//       await session.abortTransaction();
+//       session.endSession();
+
+//       return res.status(404).json({
+//           message: "عملية الدفع غير موجودة"
+//       });
+//   }
+
+//     if (existPaymentHistory.module == "debt") {
+
+//       supplier.balance = parseFloat(
+//         (supplier.balance - existPaymentHistory.amount).toFixed(2)
+//       );
+
+//     } else {
+
+//       supplier.balance = parseFloat(
+//         (supplier.balance + existPaymentHistory.amount).toFixed(2)
+//       );
+//     }
+
+//     // delete transaction if cash
+//     if (existPaymentHistory.paymentMethod === "cash") {
+
+//       await Transaction.findOneAndDelete({
+//         customerId: supplier._id,
+//         totalAmount: existPaymentHistory.amount,
+//         type:
+//     existPaymentHistory.module === "debt"
+//         ? "income"
+//         : "expense"
+//       }).session(session);
+
+//     }
+
+//         if (existPaymentHistory.paymentMethod === "wallet" &&
+//         existPaymentHistory.walletInfo?.transactionReference &&
+//        existPaymentHistory.walletInfo?.linkWallet && !req.query.delete ) {
+
+//      try {
+//             await axios.delete(
+//                 `${process.env.WalletUrl}/transaction/V2/${existPaymentHistory.walletInfo.transactionReference}`,
+//                 {
+//                     params:{
+//                                 delete:true
+//                             },
+//                     headers: {
+//                         "x-api-key": process.env.INTERNAL_API_KEY,
+//                     },
+//                 }
+//             );
+//         } catch (error) {
+//             throw new Error(
+//                 error.response?.data?.message ||
+//                 "حدث خطأ أثناء حذف عملية المحفظة"
+//             );
+//         }
+
+//     }
+
+//     if (existPaymentHistory.cheque) {
+//     await Cheque.findByIdAndDelete(
+//         existPaymentHistory.cheque
+//     ).session(session);
+// }
+
+
+//    await paymentModel.findByIdAndDelete(paymentId).session(session);
+//     await supplier.save({ session });
+
+//     await createLog({
+//   section: "عملاء النقلات",
+//   action: "حذف",
+//   userId: req?.user?.userId,
+//   targetId: supplier._id,
+//   title: supplier.name,
+//   details: `تم حذف عملية ${existPaymentHistory.module === "debt" ? "استلام" : "دفع"} بقيمة ${Number(existPaymentHistory.amount).toLocaleString()} ج.م كانت تمت عن طريق ${existPaymentHistory.paymentMethod}. تغير رصيد العميل من ${Number(
+//     existPaymentHistory.module === "debt"
+//       ? supplier.balance - existPaymentHistory.amount
+//       : supplier.balance + existPaymentHistory.amount
+//   ).toLocaleString()} ج.م إلى ${Number(supplier.balance).toLocaleString()} ج.م بتاريخ ${new Date().toLocaleString("ar-EG")}.`
+// ,session,
+// });
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     res.status(200).json({
+//       message: "تم حذف العملية بنجاح",
+//       balance: supplier.balance
+//     });
+
+//   } catch (err) {
+
+//     await session.abortTransaction();
+//     session.endSession();
+
+//     res.status(500).json({
+//       message: err.message ||"Server error",
+//       error: err.message
+//     });
+//   }
+// };
+
+
+exports.deletePaymentHistory = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
     const { paymentId, supplierId } = req.params;
 
-    const supplier = await customerModel.findById(supplierId).session(session);
+    // =========================================================
+    // 1. GET SUPPLIER
+    // =========================================================
+
+    const supplier = await customerModel
+      .findById(supplierId)
+      .session(session);
 
     if (!supplier) {
       await session.abortTransaction();
-      session.endSession();
 
       return res.status(404).json({
-        message: "العميل غير موجود"
+        message: "التاجر غير موجود",
       });
     }
 
-  const existPaymentHistory = await paymentModel.findById(paymentId).session(session);
-  if (!existPaymentHistory) {
+    // =========================================================
+    // 2. GET PAYMENT
+    // =========================================================
+
+    let payment = await paymentModel
+      .findById(paymentId)
+      .session(session);
+
+    /*
+      لو الـ paymentId اللي جاي هو ID الشيك
+      نبحث عن عملية الدفع المرتبطة بالشيك
+    */
+
+    if (!payment) {
+      payment = await paymentModel
+        .findOne({
+          cheque: paymentId,
+        })
+        .session(session);
+    }
+
+    if (!payment) {
       await session.abortTransaction();
-      session.endSession();
 
       return res.status(404).json({
-          message: "عملية الدفع غير موجودة"
+        message: "عملية الدفع غير موجودة",
       });
-  }
+    }
 
-    if (existPaymentHistory.module == "debt") {
+    // =========================================================
+    // 3. CHECK PAYMENT BELONGS TO SUPPLIER
+    // =========================================================
 
-      supplier.balance = parseFloat(
-        (supplier.balance - existPaymentHistory.amount).toFixed(2)
+    if (
+      payment.supplierId &&
+      payment.supplierId.toString() !== supplier._id.toString()
+    ) {
+      await session.abortTransaction();
+
+      return res.status(403).json({
+        message: "عملية الدفع لا تخص هذا التاجر",
+      });
+    }
+
+    // =========================================================
+    // 4. SAVE OLD BALANCE FOR LOG
+    // =========================================================
+
+    const oldBalance = Number(supplier.balance || 0);
+
+    const amount = Number(payment.amount || 0);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error("قيمة عملية الدفع غير صحيحة");
+    }
+
+    // =========================================================
+    // 5. REVERSE SUPPLIER BALANCE
+    // =========================================================
+
+    /*
+      هنا بنعكس تأثير العملية القديمة.
+
+      debt:
+        balance - amount
+
+      غير debt:
+        balance + amount
+    */
+
+    if (payment.module === "debt") {
+      supplier.balance = Number(
+        (oldBalance - amount).toFixed(2)
       );
-
     } else {
-
-      supplier.balance = parseFloat(
-        (supplier.balance + existPaymentHistory.amount).toFixed(2)
+      supplier.balance = Number(
+        (oldBalance + amount).toFixed(2)
       );
     }
 
-    // delete transaction if cash
-    if (existPaymentHistory.paymentMethod === "cash") {
+    // =========================================================
+    // 6. DELETE TRANSACTION IF CASH
+    // =========================================================
 
+    if (payment.paymentMethod === "cash") {
       await Transaction.findOneAndDelete({
-        customerId: supplier._id,
-        totalAmount: existPaymentHistory.amount,
+        supplierId: supplier._id,
+        totalAmount: amount,
         type:
-    existPaymentHistory.module === "debt"
-        ? "income"
-        : "expense"
+          payment.module === "pay"
+            ? "expense"
+            : "income",
       }).session(session);
-
     }
 
-        if (existPaymentHistory.paymentMethod === "wallet" &&
-        existPaymentHistory.walletInfo?.transactionReference &&
-       existPaymentHistory.walletInfo?.linkWallet && !req.query.delete ) {
+    // =========================================================
+    // 7. DELETE WALLET TRANSACTION
+    // =========================================================
 
-     try {
-            await axios.delete(
-                `${process.env.WalletUrl}/transaction/V2/${existPaymentHistory.walletInfo.transactionReference}`,
-                {
-                    params:{
-                                delete:true
-                            },
-                    headers: {
-                        "x-api-key": process.env.INTERNAL_API_KEY,
-                    },
-                }
-            );
-        } catch (error) {
-            throw new Error(
-                error.response?.data?.message ||
-                "حدث خطأ أثناء حذف عملية المحفظة"
-            );
-        }
-
+    if (
+      payment.paymentMethod === "wallet" &&
+      payment.walletInfo?.transactionReference &&
+      payment.walletInfo?.linkWallet &&
+      !req.query.delete
+    ) {
+      try {
+        await axios.delete(
+          `${process.env.WalletUrl}/transaction/V2/${payment.walletInfo.transactionReference}`,
+          {
+            params: {
+              delete: true,
+            },
+            headers: {
+              "x-api-key": process.env.INTERNAL_API_KEY,
+            },
+          }
+        );
+      } catch (error) {
+        throw new Error(
+          error.response?.data?.message ||
+            "حدث خطأ أثناء حذف عملية المحفظة"
+        );
+      }
     }
 
-    if (existPaymentHistory.cheque) {
-    await Cheque.findByIdAndDelete(
-        existPaymentHistory.cheque
-    ).session(session);
-}
+    // =========================================================
+    // 8. DELETE CHEQUE
+    // =========================================================
 
+    if (payment.cheque) {
+      await Cheque.findByIdAndDelete(
+        payment.cheque
+      ).session(session);
+    }
 
-   await paymentModel.findByIdAndDelete(paymentId).session(session);
-    await supplier.save({ session });
+    /*
+      لو paymentId كان ID الشيك،
+      هنا بنحذف payment._id وليس paymentId
+    */
+
+    await paymentModel
+      .findByIdAndDelete(payment._id)
+      .session(session);
+
+    // =========================================================
+    // 9. SAVE SUPPLIER
+    // =========================================================
+
+    await supplier.save({
+      session,
+    });
+
+    // =========================================================
+    // 10. CREATE LOG
+    // =========================================================
 
     await createLog({
-  section: "عملاء النقلات",
-  action: "حذف",
-  userId: req?.user?.userId,
-  targetId: supplier._id,
-  title: supplier.name,
-  details: `تم حذف عملية ${existPaymentHistory.module === "debt" ? "استلام" : "دفع"} بقيمة ${Number(existPaymentHistory.amount).toLocaleString()} ج.م كانت تمت عن طريق ${existPaymentHistory.paymentMethod}. تغير رصيد العميل من ${Number(
-    existPaymentHistory.module === "debt"
-      ? supplier.balance - existPaymentHistory.amount
-      : supplier.balance + existPaymentHistory.amount
-  ).toLocaleString()} ج.م إلى ${Number(supplier.balance).toLocaleString()} ج.م بتاريخ ${new Date().toLocaleString("ar-EG")}.`
-,session,
-});
+      section: "تجار مشتريات",
+      action: "حذف",
+      userId: req?.user?.userId,
+      targetId: supplier._id,
+      title: supplier.name,
+
+      details: `تم حذف عملية ${
+        payment.module === "pay"
+          ? "دفع"
+          : "استلام"
+      } بقيمة ${amount.toLocaleString()} ج.م كانت تمت عن طريق ${
+        payment.paymentMethod
+      }. تغير رصيد التاجر من ${oldBalance.toLocaleString()} ج.م إلى ${Number(
+        supplier.balance
+      ).toLocaleString()} ج.م بتاريخ ${new Date().toLocaleString(
+        "ar-EG"
+      )}.`,
+
+      session,
+    });
+
+    // =========================================================
+    // 11. COMMIT
+    // =========================================================
+
     await session.commitTransaction();
-    session.endSession();
 
-    res.status(200).json({
+    // =========================================================
+    // 12. RESPONSE
+    // =========================================================
+
+    return res.status(200).json({
       message: "تم حذف العملية بنجاح",
-      balance: supplier.balance
+      balance: supplier.balance,
     });
-
   } catch (err) {
+    // =========================================================
+    // ROLLBACK
+    // =========================================================
 
-    await session.abortTransaction();
-    session.endSession();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
 
-    res.status(500).json({
-      message: err.message ||"Server error",
-      error: err.message
+    console.error(
+      "deletePaymentHistory error:",
+      err
+    );
+
+    return res.status(500).json({
+      message: err.message || "Server error",
+      error: err.message,
     });
+  } finally {
+    // =========================================================
+    // END SESSION
+    // =========================================================
+
+    await session.endSession();
   }
 };
-
 
 
 // edit payment history

@@ -6,7 +6,7 @@ const Transaction = require(`${__dirname}/../../models/money/TransactionBox`);
 // add transaction to money box
 exports.addTransaction = async (req, res) => {
     try {
-        const { type, note, items } = req.body;
+        const { paymentId,type, note, items ,date  } = req.body;
         const userId = req.user.userId;
 
         if (!type || !["income", "expense"].includes(type)) {
@@ -23,7 +23,9 @@ exports.addTransaction = async (req, res) => {
             
             type,
             note: note?.trim(),
-            items
+            items,
+            date,
+            paymentId
         });
 
         await createLog({
@@ -291,7 +293,7 @@ exports.deleteTransaction = async (req, res) => {
 exports.updateTransaction = async (req, res) => {
     try {
         const { id } = req.params;
-        const { note, items } = req.body;
+        const { note, items ,date , customerId , type } = req.body;
         const userId = req.user.userId;
 
         
@@ -309,24 +311,36 @@ exports.updateTransaction = async (req, res) => {
             transaction.note = note;
         }
 
+                if (type) {
+            transaction.type = type;
+        }
+
         if (items && Array.isArray(items)) {
             transaction.items = items;
+        }
+
+        if (customerId) {
+            transaction.customerId = customerId;
+        }
+        
+        if (date) {
+            transaction.date = date;
         }
 
         
         await transaction.save(); // total auto recalculated
 
-        await createLog({
-    section: "الخزنة",
-    action: "تعديل",
-    userId,
-    targetId: transaction._id,
-    title: transaction.type === "income" ? "عملية إيراد" : "عملية مصروف",
-    details: `تم تعديل ${transaction.type === "income" ? "عملية إيراد" : "عملية مصروف"}.
-القيمة: ${Number(oldTransaction.totalAmount).toLocaleString()} ج.م → ${Number(transaction.totalAmount).toLocaleString()} ج.م.
-عدد البنود: ${oldTransaction.items.length} → ${transaction.items.length}.
-${oldTransaction.note !== transaction.note ? `الملاحظة: "${oldTransaction.note || "-"}" → "${transaction.note || "-"}".` : ""}`
-});
+//         await createLog({
+//     section: "الخزنة",
+//     action: "تعديل",
+//     userId,
+//     targetId: transaction._id,
+//     title: transaction.type === "income" ? "عملية إيراد" : "عملية مصروف",
+//     details: `تم تعديل ${transaction.type === "income" ? "عملية إيراد" : "عملية مصروف"}.
+// القيمة: ${Number(oldTransaction.totalAmount).toLocaleString()} ج.م → ${Number(transaction.totalAmount).toLocaleString()} ج.م.
+// عدد البنود: ${oldTransaction.items.length} → ${transaction.items.length}.
+// ${oldTransaction.note !== transaction.note ? `الملاحظة: "${oldTransaction.note || "-"}" → "${transaction.note || "-"}".` : ""}`
+// });
         return res.status(200).json({
             message: "تم التعديل بنجاح",
             transaction

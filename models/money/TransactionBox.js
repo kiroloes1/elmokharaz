@@ -62,6 +62,9 @@ const TransactionSchema = new mongoose.Schema({
     },
     ref:{
         type:String
+    },
+    paymentId:{
+        type:String
     }
 
 }, { timestamps: true });

@@ -9,6 +9,10 @@ const customerReportController = require("../controllers/advancedReports/custome
 const equipmentReportController = require("../controllers/advancedReports/equipmentReportController");
 const chequeReportController = require("../controllers/advancedReports/chequeReportController");
 const userActivityReportController = require("../controllers/advancedReports/userActivityReportController");
+const itemsReportController =require("../controllers/advancedReports/itemsReports")
+const deliveriesReportController =require("../controllers/advancedReports/deliveryreport")
+
+
 
 const {role}= require(`${__dirname}/../middlewares/authorization`) 
 const authMiddleware = require(`${__dirname}/../middlewares/authMiddleware`); 
@@ -39,5 +43,11 @@ router.get("/cheques/by-trader", chequeReportController.getChequesByTraderReport
 // ============ نشاط المستخدمين ============
 router.get("/users/most-active", userActivityReportController.getMostActiveUsersReport);
 router.get("/users/:id/activity", userActivityReportController.getUserActivityDetails);
+
+
+router.get("/items", itemsReportController.getItemsReport);
+router.get("/items/top", itemsReportController.getTopItem);
+router.get("/deliveries", deliveriesReportController.getDeliveriesReport);
+router.get("/deliveries/by-supplier", deliveriesReportController.getDeliveriesBySupplier);
 
 module.exports = router;
