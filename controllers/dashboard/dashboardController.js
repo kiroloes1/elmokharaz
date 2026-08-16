@@ -200,8 +200,8 @@ exports.money = async (req, res) => {
 
     const customerTotal = customers.length;
 
-    const customersHaveMoney = customers.filter(c => c.balance > 0);
-    const customerDebtMoney = customers.filter(c => c.balance < 0);
+    const customersHaveMoney = customers.filter(c => c.balance < 0);
+    const customerDebtMoney = customers.filter(c => c.balance > 0);
 
     const customersHaveMoneyAmount = customersHaveMoney.reduce(
       (sum, c) => sum + c.balance,
