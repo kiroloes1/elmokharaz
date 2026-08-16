@@ -236,11 +236,11 @@ exports.updateCheque = async (req, res) => {
       // ==========================================
       if (customer) {
         if (cheque.moneyFlow === "incoming") {
-          if (!isOldInactive && isNewInactive) customer.balance -= cheque.amount;
-          else if (isOldInactive && !isNewInactive) customer.balance += cheque.amount;
-        } else { // outgoing
           if (!isOldInactive && isNewInactive) customer.balance += cheque.amount;
           else if (isOldInactive && !isNewInactive) customer.balance -= cheque.amount;
+        } else { // outgoing
+          if (!isOldInactive && isNewInactive) customer.balance -= cheque.amount;
+          else if (isOldInactive && !isNewInactive) customer.balance += cheque.amount;
         }
         await customer.save({ session });
       } else if (supplier) {

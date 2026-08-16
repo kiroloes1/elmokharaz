@@ -357,7 +357,8 @@ exports.deleteSupplier = async (req, res) => {
 
 // ================= ADD DEBT ================= 
 
-exports.addDebt = async (req, res) => {
+// دفع للتاجر 
+exports.addDebt= async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
@@ -385,7 +386,7 @@ exports.addDebt = async (req, res) => {
    
     const oldSupplier=supplier.balance;
     // supplier.balance += amount;
-    supplier.balance = parseFloat((supplier.balance - amount).toFixed(2));
+    supplier.balance = parseFloat((supplier.balance + amount).toFixed(2));
 
     await supplier.save({session});
 
@@ -550,8 +551,8 @@ details: `تم دفع مبلغ ${Number(amount).toLocaleString()} ج.م إلى �
 
 
 
-// استلام فلوس 
-exports.paySupplier = async (req, res) => {
+// استلام فلوس من التاجر 
+exports.paySupplier  = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
@@ -579,7 +580,7 @@ exports.paySupplier = async (req, res) => {
    
      const oldSupplier=supplier.balance;
     // supplier.balance += amount;
-    supplier.balance = parseFloat((supplier.balance + amount).toFixed(2));
+    supplier.balance = parseFloat((supplier.balance - amount).toFixed(2));
 
     await supplier.save({session});
 

@@ -382,7 +382,7 @@ exports.createDelivery = async (req, res) => {
 
         const oldBalance = supplierExists.balance || 0;
         const netDue = totalAmount - paidAmount;
-        const newBalance = oldBalance - netDue;
+        const newBalance = oldBalance + netDue;
 
         
         const delivery = await derliveryModel.create([{
@@ -598,9 +598,6 @@ var payment1=await paymentModel.create([paymentData], { session });
 
 
 
-
-
-
 // update delivery
 exports.updateDelivery = async (req, res) => {
     const session = await mongoose.startSession();
@@ -647,7 +644,7 @@ exports.updateDelivery = async (req, res) => {
         const oldPaid = oldDelivery.paidAmount || 0;
         const oldNet = (oldDelivery.totalAmount || 0) - oldPaid;
 
-        supplierDoc.balance += oldNet;
+        supplierDoc.balance -= oldNet;
 
 
   
@@ -705,7 +702,7 @@ exports.updateDelivery = async (req, res) => {
   
         // 4. APPLY NEW EFFECT
   
-        const newBalance = supplierDoc.balance - netDue;
+        const newBalance = supplierDoc.balance + netDue;
 
         supplierDoc.balance = newBalance;
 
@@ -962,13 +959,6 @@ var payment1=await paymentModel.create([paymentData], { session });
 };
 
 
-
-
-
-
-
-
-
 // delete delivery
 exports.deleteDelivery = async (req, res) => {
     const session = await mongoose.startSession();
@@ -996,7 +986,7 @@ exports.deleteDelivery = async (req, res) => {
         const oldPaid = oldDelivery.paidAmount || 0;
         const oldNet = (oldDelivery.totalAmount || 0) - oldPaid;
 
-        supplier.balance += oldNet;
+        supplier.balance -= oldNet;
 
 
 
