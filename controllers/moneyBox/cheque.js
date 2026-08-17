@@ -17,78 +17,256 @@ exports.getAllCheque = async (req, res) => {
         const limit = Number(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
+        // =========================================================
+        // FILTER
+        // =========================================================
+
         const filter = {};
 
-        if (req.query.customerId) filter.customer = req.query.customerId;
-        if (req.query.supplierId) filter.supplier = req.query.supplierId;
-        if (req.query.chequeType) filter.chequeType = req.query.chequeType;
-        if (req.query.bankName) {
-            filter.bankName = { $regex: req.query.bankName.trim(), $options: "i" };
-        }
-        if (req.query.status) filter.status = req.query.status;
-        if (req.query.location) filter.location = req.query.location;
-        if (req.query.moneyFlow) filter.moneyFlow = req.query.moneyFlow;
-        if (req.query.chequeNumber) {
-            filter.chequeNumber = { $regex: req.query.chequeNumber.trim(), $options: "i" };
+        if (req.query.customerId) {
+            filter.customer = req.query.customerId;
         }
 
-        // تصفية تاريخ الاستلام والاستحقاق
+        if (req.query.supplierId) {
+            filter.supplier = req.query.supplierId;
+        }
+
+        if (req.query.chequeType) {
+            filter.chequeType = req.query.chequeType;
+        }
+
+        if (req.query.bankName) {
+            filter.bankName = {
+                $regex: req.query.bankName.trim(),
+                $options: "i"
+            };
+        }
+
+        if (req.query.status) {
+            filter.status = req.query.status;
+        }
+
+        if (req.query.location) {
+            filter.location = req.query.location;
+        }
+
+        if (req.query.moneyFlow) {
+            filter.moneyFlow = req.query.moneyFlow;
+        }
+
+        if (req.query.chequeNumber) {
+            filter.chequeNumber = {
+                $regex: req.query.chequeNumber.trim(),
+                $options: "i"
+            };
+        }
+
+        // =========================================================
+        // DATE FILTER
+        // =========================================================
+
         if (req.query.dueFrom || req.query.dueTo) {
             filter.dueDate = {};
-            if (req.query.dueFrom) filter.dueDate.$gte = new Date(req.query.dueFrom);
-            if (req.query.dueTo) filter.dueDate.$lte = new Date(req.query.dueTo);
+
+            if (req.query.dueFrom) {
+                filter.dueDate.$gte = new Date(req.query.dueFrom);
+            }
+
+            if (req.query.dueTo) {
+                filter.dueDate.$lte = new Date(req.query.dueTo);
+            }
         }
 
+        // =========================================================
+        // GET CHEQUES + COUNT
+        // =========================================================
+
         const [cheques, totalCheques] = await Promise.all([
-            chequeModel.find(filter)
+            chequeModel
+                .find(filter)
                 .populate("supplier", "name phone")
                 .populate("customer", "name phone")
                 .sort({ dueDate: 1 })
                 .skip(skip)
                 .limit(limit),
+
             chequeModel.countDocuments(filter)
         ]);
 
-        // -------------------------------------------------------------
-        // حساب إجمالي الشيكات القائمة فقط (تحت التحصيل + مستحقة اليوم)
-        // -------------------------------------------------------------
-        const pendingStats = await chequeModel.aggregate([
+        // =========================================================
+        // CHEQUE STATISTICS
+        // =========================================================
+
+        const chequeStats = await chequeModel.aggregate([
             {
-                $match: {
-                    status: { $in: ["under_collection", "due_today"] }
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    totalPendingAmount: { $sum: "$amount" },
-                    countPending: { $sum: 1 }
+                $facet: {
+
+                    // -------------------------------------------------
+                    // 1. الشيكات القائمة
+                    // تحت التحصيل + مستحقة اليوم
+                    // -------------------------------------------------
+
+                    pending: [
+                        {
+                            $match: {
+                                status: {
+                                    $in: [
+                                        "under_collection",
+                                        "due_today"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                totalAmount: {
+                                    $sum: "$amount"
+                                },
+                                count: {
+                                    $sum: 1
+                                }
+                            }
+                        }
+                    ],
+
+                    // -------------------------------------------------
+                    // 2. الرواجع + الملغي
+                    // -------------------------------------------------
+
+                    returnedCancelled: [
+                        {
+                            $match: {
+                                status: {
+                                    $in: [
+                                        "returned",
+                                        "cancelled"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                totalAmount: {
+                                    $sum: "$amount"
+                                },
+                                count: {
+                                    $sum: 1
+                                }
+                            }
+                        }
+                    ],
+
+                    // -------------------------------------------------
+                    // 3. تم التحصيل
+                    // -------------------------------------------------
+
+                    collected: [
+                        {
+                            $match: {
+                                status: "collected"
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                totalAmount: {
+                                    $sum: "$amount"
+                                },
+                                count: {
+                                    $sum: 1
+                                }
+                            }
+                        }
+                    ]
                 }
             }
         ]);
 
-        const totalPendingAmount = pendingStats.length > 0 ? pendingStats[0].totalPendingAmount : 0;
+        // =========================================================
+        // FORMAT STATISTICS
+        // =========================================================
+
+        const stats = chequeStats[0] || {};
+
+        const pending = {
+            totalAmount:
+                stats.pending?.[0]?.totalAmount || 0,
+
+            count:
+                stats.pending?.[0]?.count || 0
+        };
+
+        const returnedCancelled = {
+            totalAmount:
+                stats.returnedCancelled?.[0]?.totalAmount || 0,
+
+            count:
+                stats.returnedCancelled?.[0]?.count || 0
+        };
+
+        const collected = {
+            totalAmount:
+                stats.collected?.[0]?.totalAmount || 0,
+
+            count:
+                stats.collected?.[0]?.count || 0
+        };
+
+        // =========================================================
+        // RESPONSE
+        // =========================================================
 
         res.status(200).json({
             message: "تم جلب جميع الشيكات بنجاح",
+
             cheques,
+
             pagination: {
                 currentPage: page,
-                totalPages: Math.ceil(totalCheques / limit),
+                totalPages: Math.ceil(
+                    totalCheques / limit
+                ),
                 totalCheques,
                 limit
             },
-            totalAmounts: totalPendingAmount // إجمالي القائم الشغال حالياً
+
+            totalAmounts: {
+
+                // الشيكات القائمة
+                pending: {
+                    amount: pending.totalAmount,
+                    count: pending.count
+                },
+
+                // الرواجع + الملغي
+                returnedCancelled: {
+                    amount: returnedCancelled.totalAmount,
+                    count: returnedCancelled.count
+                },
+
+                // تم التحصيل
+                collected: {
+                    amount: collected.totalAmount,
+                    count: collected.count
+                }
+            }
         });
 
     } catch (err) {
+
+        console.error(
+            "getAllCheque error:",
+            err
+        );
+
         res.status(500).json({
             message: "Server error",
             error: err.message
         });
     }
 };
-
 // Endpoint جديد لجلب الشيكات التفصيلية الخاصة بكارت معين (حسب الحالات)
 exports.getChequesByCardType = async (req, res) => {
     try {
