@@ -623,6 +623,36 @@ exports.dashboardStats = async (req, res) => {
                         }
                     },
 
+                      work: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$paymentMethod", "work"] },
+                                        { $eq: ["$moneyFlow", "incoming"] }
+                                    ]
+                                },
+                                "$amount",
+                                0
+                            ]
+                        }
+                    },
+
+                    workOut: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$paymentMethod", "work"] },
+                                        { $eq: ["$moneyFlow", "outgoing"] }
+                                    ]
+                                },
+                                "$amount",
+                                0
+                            ]
+                        }
+                    },
+
                 }
             }
         ]);
@@ -728,6 +758,15 @@ exports.dashboardStats = async (req, res) => {
                     outgoing: payment.instapayOut || 0
                 },
 
+             work: {
+                    balance:
+                        (payment.work || 0) -
+                        (payment.workOut || 0),
+
+                    incoming: payment.work || 0,
+
+                    outgoing: payment.workOut || 0
+                },
                 
                 cheque: {
                     balance:
