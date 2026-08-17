@@ -16,6 +16,9 @@ router.use(role('superadmin', 'manager')); // only admin and manager can access 
 // get all 
 router.get("/",chequeController.getAllCheque);
 
+
+router.get("/getChequesByCardType",chequeController.getChequesByCardType);
+
 // get notification
 router.get("/notification",chequeController.notification);
 
