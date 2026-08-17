@@ -7,132 +7,128 @@ const transactionModel=require(`${__dirname}/../../models/money/TransactionBox`)
 const deliveryModel=require(`${__dirname}/../../models/delivery/outDelivery`);
 const mongoose = require('mongoose');
 const { createLog } = require('../../services/createLogs');
-// get all cheque
 
+
+// get all cheque
 exports.getAllCheque = async (req, res) => {
     try {
-
         const page = Number(req.query.page) || 1;
         const limit = Number(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
         const filter = {};
 
-        if (req.query.customerId) {
-            filter.customer = req.query.customerId;
-        }
-
-        if (req.query.chequeType) {
-            filter.chequeType = req.query.chequeType;
-        }
-
+        if (req.query.customerId) filter.customer = req.query.customerId;
+        if (req.query.chequeType) filter.chequeType = req.query.chequeType;
         if (req.query.bankName) {
-            filter.bankName = {
-                $regex: req.query.bankName.trim(),
-                $options: "i"
-            };
+            filter.bankName = { $regex: req.query.bankName.trim(), $options: "i" };
         }
-
-        if (req.query.status) {
-            filter.status = req.query.status;
-        }
-
-        if (req.query.location) {
-            filter.location = req.query.location;
-        }
-
-       if (req.query.moneyFlow) {
-            filter.moneyFlow = req.query.moneyFlow;
-        }
-
+        if (req.query.status) filter.status = req.query.status;
+        if (req.query.location) filter.location = req.query.location;
+        if (req.query.moneyFlow) filter.moneyFlow = req.query.moneyFlow;
         if (req.query.chequeNumber) {
-            filter.chequeNumber = {
-                $regex: req.query.chequeNumber,
-                $options: "i"
-            };
+            filter.chequeNumber = { $regex: req.query.chequeNumber, $options: "i" };
         }
 
         // Receive Date
         if (req.query.receiveFrom || req.query.receiveTo) {
             filter.receiveDate = {};
-
-            if (req.query.receiveFrom) {
-                filter.receiveDate.$gte = new Date(req.query.receiveFrom);
-            }
-
-            if (req.query.receiveTo) {
-                filter.receiveDate.$lte = new Date(req.query.receiveTo);
-            }
+            if (req.query.receiveFrom) filter.receiveDate.$gte = new Date(req.query.receiveFrom);
+            if (req.query.receiveTo) filter.receiveDate.$lte = new Date(req.query.receiveTo);
         }
 
         // Due Date
         if (req.query.dueFrom || req.query.dueTo) {
             filter.dueDate = {};
-
-            if (req.query.dueFrom) {
-                filter.dueDate.$gte = new Date(req.query.dueFrom);
-            }
-
-            if (req.query.dueTo) {
-                filter.dueDate.$lte = new Date(req.query.dueTo);
-            }
+            if (req.query.dueFrom) filter.dueDate.$gte = new Date(req.query.dueFrom);
+            if (req.query.dueTo) filter.dueDate.$lte = new Date(req.query.dueTo);
         }
 
         const [cheques, totalCheques] = await Promise.all([
-
-        chequeModel.find(filter)
-        .populate("supplier", "name")
+            chequeModel.find(filter)
+                .populate("supplier", "name")
                 .populate("customer", "name")
-                
-
                 .sort({ dueDate: 1 })
                 .skip(skip)
                 .limit(limit),
-
             chequeModel.countDocuments(filter)
-
         ]);
 
-        // for(cheque of cheques){
-
-        //     if((cheque.dueDate.getDay() == (new Date()).getDay) ,(cheque.dueDate.getMonth() , (new Date()).getMonth())
-        //     && (cheque.dueDate.getFullYear() == (new Date()).getFullYear())){
-       
-        //         cheque.status="due_today"
-        //         await cheque.save()
-        //     }
-        // }
+        // -------------------------------------------------------------
+        // حساب إجمالي الشيكات القائمة فقط (تحت التحصيل + مستحقة اليوم)
+        // واستبعاد: collected, returned, cancelled
+        // -------------------------------------------------------------
+        const pendingCheques = await chequeModel.find({
+            status: { $in: ["under_collection", "due_today"] }
+        }, { amount: 1 });
         
-        const Amounts=await chequeModel.find({},{amount:1})
-        const totalAmounts=Amounts?.reduce((acc,curr)=>acc+ curr.amount,0)
+        const totalPendingAmount = pendingCheques.reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
         res.status(200).json({
-
             message: "تم جلب جميع الشيكات",
-
             cheques,
-
             pagination: {
                 currentPage: page,
                 totalPages: Math.ceil(totalCheques / limit),
                 totalCheques,
                 limit
-            }
-            ,
-            totalAmounts
-
+            },
+            totalAmounts: totalPendingAmount // الإجمالي القائم فقط
         });
 
     } catch (err) {
-
         res.status(500).json({
             message: "Server error",
             error: err.message
         });
-
     }
 };
 
+// Endpoint جديد لجلب الشيكات التفصيلية الخاصة بكارت معين (حسب الحالات)
+exports.getChequesByCardType = async (req, res) => {
+    try {
+        const { cardType } = req.query; // pending, collected, returned, cancelled, due_today
+        let filter = {};
+
+        switch (cardType) {
+            case "pending": // إجمالي الشيكات القائمة
+                filter.status = { $in: ["under_collection", "due_today"] };
+                break;
+            case "due_today":
+                filter.status = "due_today";
+                break;
+            case "collected":
+                filter.status = "collected";
+                break;
+            case "returned":
+                filter.status = "returned";
+                break;
+            case "cancelled":
+                filter.status = "cancelled";
+                break;
+            case "under_collection":
+                filter.status = "under_collection";
+                break;
+            default:
+                break;
+        }
+
+        const list = await chequeModel.find(filter)
+            .populate("customer", "name phone")
+            .populate("supplier", "name phone")
+            .sort({ dueDate: 1 });
+
+        const totalAmount = list.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+
+        res.status(200).json({
+            cheques: list,
+            totalAmount,
+            count: list.length
+        });
+    } catch (err) {
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+};
 
 // get cheque by id 
 exports.getChequeByID=async(req,res)=>{
