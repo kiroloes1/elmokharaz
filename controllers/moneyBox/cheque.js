@@ -10,6 +10,7 @@ const { createLog } = require('../../services/createLogs');
 
 
 // get all cheque
+
 exports.getAllCheque = async (req, res) => {
     try {
         const page = Number(req.query.page) || 1;
@@ -19,6 +20,7 @@ exports.getAllCheque = async (req, res) => {
         const filter = {};
 
         if (req.query.customerId) filter.customer = req.query.customerId;
+        if (req.query.supplierId) filter.supplier = req.query.supplierId;
         if (req.query.chequeType) filter.chequeType = req.query.chequeType;
         if (req.query.bankName) {
             filter.bankName = { $regex: req.query.bankName.trim(), $options: "i" };
@@ -27,17 +29,10 @@ exports.getAllCheque = async (req, res) => {
         if (req.query.location) filter.location = req.query.location;
         if (req.query.moneyFlow) filter.moneyFlow = req.query.moneyFlow;
         if (req.query.chequeNumber) {
-            filter.chequeNumber = { $regex: req.query.chequeNumber, $options: "i" };
+            filter.chequeNumber = { $regex: req.query.chequeNumber.trim(), $options: "i" };
         }
 
-        // Receive Date
-        if (req.query.receiveFrom || req.query.receiveTo) {
-            filter.receiveDate = {};
-            if (req.query.receiveFrom) filter.receiveDate.$gte = new Date(req.query.receiveFrom);
-            if (req.query.receiveTo) filter.receiveDate.$lte = new Date(req.query.receiveTo);
-        }
-
-        // Due Date
+        // تصفية تاريخ الاستلام والاستحقاق
         if (req.query.dueFrom || req.query.dueTo) {
             filter.dueDate = {};
             if (req.query.dueFrom) filter.dueDate.$gte = new Date(req.query.dueFrom);
@@ -46,8 +41,8 @@ exports.getAllCheque = async (req, res) => {
 
         const [cheques, totalCheques] = await Promise.all([
             chequeModel.find(filter)
-                .populate("supplier", "name")
-                .populate("customer", "name")
+                .populate("supplier", "name phone")
+                .populate("customer", "name phone")
                 .sort({ dueDate: 1 })
                 .skip(skip)
                 .limit(limit),
@@ -56,16 +51,26 @@ exports.getAllCheque = async (req, res) => {
 
         // -------------------------------------------------------------
         // حساب إجمالي الشيكات القائمة فقط (تحت التحصيل + مستحقة اليوم)
-        // واستبعاد: collected, returned, cancelled
         // -------------------------------------------------------------
-        const pendingCheques = await chequeModel.find({
-            status: { $in: ["under_collection", "due_today"] }
-        }, { amount: 1 });
-        
-        const totalPendingAmount = pendingCheques.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+        const pendingStats = await chequeModel.aggregate([
+            {
+                $match: {
+                    status: { $in: ["under_collection", "due_today"] }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalPendingAmount: { $sum: "$amount" },
+                    countPending: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const totalPendingAmount = pendingStats.length > 0 ? pendingStats[0].totalPendingAmount : 0;
 
         res.status(200).json({
-            message: "تم جلب جميع الشيكات",
+            message: "تم جلب جميع الشيكات بنجاح",
             cheques,
             pagination: {
                 currentPage: page,
@@ -73,7 +78,7 @@ exports.getAllCheque = async (req, res) => {
                 totalCheques,
                 limit
             },
-            totalAmounts: totalPendingAmount // الإجمالي القائم فقط
+            totalAmounts: totalPendingAmount // إجمالي القائم الشغال حالياً
         });
 
     } catch (err) {
