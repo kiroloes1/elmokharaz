@@ -13,7 +13,6 @@ const { createLog } = require('../../services/createLogs');
      if(method=="cash"){
       return "نقدي";
      }
-       
      else if(method=="cash"){
         return "نقدي";
      }

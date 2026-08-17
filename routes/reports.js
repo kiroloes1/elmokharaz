@@ -20,6 +20,9 @@ const outDeliveryReport = require(`${__dirname}/../controllers/reports/outDelive
 const chequeReport = require(`${__dirname}/../controllers/reports/chequeReport`);
 const customerReport = require(`${__dirname}/../controllers/reports/customerReport`);
 const expenseReport=require(`${__dirname}/../controllers/reports/expenseReport`)
+
+// Controller التقرير الشامل الجديد
+const comprehensiveReportController = require("../controllers/advancedReports/normalreport");
 // الحماية والتحقق من الصلاحيات
 router.use(authMiddleware.protected);
 router.use(role("superadmin", "manager")); // يسمح فقط للـ superadmin و manager
@@ -29,6 +32,8 @@ router.use(role("superadmin", "manager")); // يسمح فقط للـ superadmin 
 // 1. تقارير المدفوعات والتحصيلات
 router.get("/payment", paymentReport.Payment );
 
+// ============ التقرير الشامل (صفحة واحدة) ============
+router.get("/comprehensive", comprehensiveReportController.getComprehensiveReport);
 // 2. تقارير العملاء والتجار
 router.get("/customer", customerReport.Customer );
 router.get("/supplier", supplierReport.Supplier );
