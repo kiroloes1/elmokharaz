@@ -952,23 +952,15 @@ exports.deletePaymentHistory = async (req, res) => {
     // 5. REVERSE SUPPLIER BALANCE
     // =========================================================
 
-    /*
-      هنا بنعكس تأثير العملية القديمة.
 
-      debt:
-        balance - amount
-
-      غير debt:
-        balance + amount
-    */
 
     if (payment.module === "debt") {
       supplier.balance = Number(
-        (oldBalance - amount).toFixed(2)
+        (oldBalance + amount).toFixed(2)
       );
     } else {
       supplier.balance = Number(
-        (oldBalance + amount).toFixed(2)
+        (oldBalance - amount).toFixed(2)
       );
     }
 
@@ -981,9 +973,9 @@ exports.deletePaymentHistory = async (req, res) => {
         supplierId: supplier._id,
         totalAmount: amount,
         type:
-          payment.module === "pay"
-            ? "expense"
-            : "income",
+          payment.module === "debt"
+            ?"income" 
+            :"expense",
       }).session(session);
     }
 
@@ -1158,13 +1150,13 @@ exports.editPaymentHistory = async (req, res) => {
     if (existPaymentHistory.module == "debt") {
 
       supplier.balance = parseFloat(
-        (supplier.balance - existPaymentHistory.amount).toFixed(2)
+        (supplier.balance + existPaymentHistory.amount).toFixed(2)
       );
 
     } else {
 
       supplier.balance = parseFloat(
-        (supplier.balance + existPaymentHistory.amount).toFixed(2)
+        (supplier.balance - existPaymentHistory.amount).toFixed(2)
       );
     }
 
@@ -1231,11 +1223,11 @@ exports.editPaymentHistory = async (req, res) => {
 
     if (existPaymentHistory.module == "debt") {
 
-      supplier.balance += existPaymentHistory.amount;
+      supplier.balance -= existPaymentHistory.amount;
 
     } else {
 
-      supplier.balance -= existPaymentHistory.amount;
+      supplier.balance += existPaymentHistory.amount;
 
     }
 
@@ -1398,7 +1390,7 @@ await existPaymentHistory.save({ session });
   userId: req?.user?.userId,
   targetId: supplier._id,
   title: supplier.name,
-  details: `تم تعديل عملية ${existPaymentHistory.module === "pay" ? "استلام" : "دفع"} للعميل ${supplier.name}. المبلغ الجديد ${Number(existPaymentHistory.amount).toLocaleString()} ج.م، وطريقة الدفع ${existPaymentHistory.paymentMethod}. أصبح رصيد العميل ${Number(supplier.balance).toLocaleString()} ج.م بتاريخ ${new Date().toLocaleString("ar-EG")}.`
+  details: `تم تعديل عملية ${existPaymentHistory.module === "debt" ? "استلام" : "دفع"} للعميل ${supplier.name}. المبلغ الجديد ${Number(existPaymentHistory.amount).toLocaleString()} ج.م، وطريقة الدفع ${existPaymentHistory.paymentMethod}. أصبح رصيد العميل ${Number(supplier.balance).toLocaleString()} ج.م بتاريخ ${new Date().toLocaleString("ar-EG")}.`
 ,session,
 });
 
