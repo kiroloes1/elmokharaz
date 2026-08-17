@@ -103,6 +103,8 @@ exports.getComprehensiveReport = async (req, res) => {
             _id: null,
             totalCustomers: { $sum: 1 },
             totalBalanceDueToUs: { $sum: { $cond: [{ $gt: ["$balance", 0] }, "$balance", 0] } },
+            totalBalanceDueToCustomer: { $sum: { $cond: [{ $lt: ["$balance", 0] }, "$balance", 0] } },
+
           },
         },
       ]),
@@ -169,7 +171,7 @@ exports.getComprehensiveReport = async (req, res) => {
     ];
 
     // حسابات التجار
-    const customersInfo = customersData[0] || { totalCustomers: 0, totalBalanceDueToUs: 0 };
+    const customersInfo = customersData[0] || { totalCustomers: 0, totalBalanceDueToUs: 0 ,totalBalanceDueToCustomer:0 };
     const suppliersInfo = suppliersData[0] || { totalSuppliers: 0, totalBalanceDueFromUs: 0 };
 
     const netTraderPosition = customersInfo.totalBalanceDueToUs - suppliersInfo.totalBalanceDueFromUs;
@@ -216,6 +218,8 @@ exports.getComprehensiveReport = async (req, res) => {
         traderAccounts: {
           activeTradersCount: customersInfo.totalCustomers + suppliersInfo.totalSuppliers,
           totalDueToUs: customersInfo.totalBalanceDueToUs,
+
+          totalBalanceDueToCustomer:customersInfo.totalBalanceDueToCustomer,
           totalDueFromUs: suppliersInfo.totalBalanceDueFromUs,
           netPosition: netTraderPosition,
         },
