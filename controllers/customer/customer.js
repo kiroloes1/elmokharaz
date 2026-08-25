@@ -614,7 +614,8 @@ exports.paySupplier  = async (req, res) => {
         transactionDate: date || new Date(),
         notes: note || "",
         createdBy: userId,
-        updatedBy:null
+        updatedBy:null,
+      fromWalletSupplier:req.query.fromWalletSupplier || false
     };
     if (paymentMethod === "wallet") {
 
@@ -709,7 +710,7 @@ if ((paymentMethod === "bank" || paymentMethod === "instapay") && !req.body.bank
         notes: note,
         moneyFlow: "incoming",
         createdBy: userId,
-        fromWalletSupplier:req.query.fromWalletSupplier || false
+        
     }], { session });
 
     paymentData.cheque = cheque[0]._id;
