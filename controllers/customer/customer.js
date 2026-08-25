@@ -713,7 +713,7 @@ if ((paymentMethod === "bank" || paymentMethod === "instapay") && !req.body.bank
 
     paymentData.cheque = cheque[0]._id;
 }
-await paymentModel.create([paymentData], { session });
+const pay=await paymentModel.create([paymentData], { session });
 
 
 await createLog({
