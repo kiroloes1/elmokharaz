@@ -708,7 +708,8 @@ if ((paymentMethod === "bank" || paymentMethod === "instapay") && !req.body.bank
         dueDate: req.body.cheque.dueDate,
         notes: note,
         moneyFlow: "incoming",
-        createdBy: userId
+        createdBy: userId,
+        fromWalletSupplier:req.query.fromWalletSupplier || false
     }], { session });
 
     paymentData.cheque = cheque[0]._id;
