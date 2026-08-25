@@ -731,7 +731,8 @@ await createLog({
 
     res.status(200).json({
       message: "تم اضافه السداد بنجاح",
-      balance: supplier.balance
+      balance: supplier.balance,
+        pay:pay[0]
     });
 
   } catch (err) {
