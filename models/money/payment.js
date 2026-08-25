@@ -136,6 +136,10 @@ const paymentSchema = new mongoose.Schema(
       ref: "User",
     },
 
+    fromWalletSupplier:{
+      type:Boolean,
+      default:false
+    },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
